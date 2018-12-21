@@ -1,0 +1,35 @@
+workspace:
+  base: /opt/airwallex
+  path: logrotate
+
+pipeline:
+  publish:
+    image: plugins/docker
+    repo: ${AIRWALLEX_DEV_REGISTRY}/logrotate
+    tags:
+      - ${DRONE_REPO_BRANCH/\//-}-${DRONE_BUILD_NUMBER}
+      - latest
+    secrets: [ docker_username, docker_password, airwallex_dev_registry ]
+    dockerfile: Dockerfile
+
+  retag-containers:
+    image: ${AIRWALLEX_DEV_REGISTRY}/awx-docker-tag:latest
+    pull: true
+    tags:
+      - ${DRONE_REPO_BRANCH//\//-}-${DRONE_BUILD_NUMBER}
+    release_registry: ${AIRWALLEX_REGISTRY}
+    registry: ${${AIRWALLEX_DEV_REGISTRY}}
+    aliyun_region_filters:
+      - ap-southeast-2
+    enable_push_release: true
+    secrets: [ airwallex_dev_registry, airwallex_registry ]
+    docker_agent: unix:///var/run/docker.sock
+    volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
+    images:
+      - logrotate
+    secrets: [ docker_username, docker_password, airwallex_dev_registry ]
+    commands:
+      - DOCKER_HOST="$PLUGIN_DOCKER_AGENT" docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD} ${AIRWALLEX_DEV_REGISTRY}
+      - /entrypoint.sh retag || (DOCKER_HOST="$PLUGIN_DOCKER_AGENT" docker logout ${AIRWALLEX_DEV_REGISTRY} && exit 1)
+      - DOCKER_HOST="$PLUGIN_DOCKER_AGENT" docker logout ${${AIRWALLEX_DEV_REGISTRY}}
